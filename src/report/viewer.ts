@@ -335,13 +335,13 @@ const renderSummary = (data: ReportData, stats: Stats): HTMLElement => {
 // ------------------------- Sidebar -------------------------
 
 const SECTIONS: { id: string; label: string }[] = [
+  { id: "notes", label: "Notes" },
   { id: "repro", label: "Repro Steps" },
   { id: "timeline", label: "Timeline" },
   { id: "console", label: "Console" },
   { id: "network", label: "Network" },
   { id: "actions", label: "Actions" },
   { id: "screenshots", label: "Screenshots" },
-  { id: "notes", label: "Notes" },
   { id: "raw", label: "Raw JSON" },
 ];
 
@@ -1150,6 +1150,10 @@ const bootstrap = () => {
   app.appendChild(renderSidebar());
 
   const main = el("main", {}, [
+    el("section", { id: "notes" }, [
+      el("h2", { class: "section-h" }, "Notes"),
+      renderNotes(data),
+    ]),
     el("section", { id: "repro" }, [
       el("h2", { class: "section-h" }, "Repro Steps"),
       renderRepro(data, screenshots, openLightbox),
@@ -1173,10 +1177,6 @@ const bootstrap = () => {
     el("section", { id: "screenshots" }, [
       el("h2", { class: "section-h" }, "Screenshots"),
       renderScreenshots(data, screenshots, openLightbox),
-    ]),
-    el("section", { id: "notes" }, [
-      el("h2", { class: "section-h" }, "Notes"),
-      renderNotes(data),
     ]),
     el("section", { id: "raw" }, [
       el("h2", { class: "section-h" }, "Raw JSON"),

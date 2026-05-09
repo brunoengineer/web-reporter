@@ -1,37 +1,88 @@
 # Web Reporter
 
-Chrome extension for QA engineers. Record a manual-test session locally and export a single self-contained HTML bug report to share with the developer. **No server, no cloud, no link.**
+A Chrome extension for QA engineers. Record a manual-test session locally and export a **single self-contained `.html` file** to hand to a developer. No server, no cloud, no shareable link — everything stays in the browser until you click Export.
 
-See [PLAN.md](./PLAN.md) for design.
+See [PLAN.md](./PLAN.md) for the design rationale.
 
-## Status
+## Features
 
-Phase 1, in progress. Current scaffold = popup UI shell only; capture and export not wired yet.
+- **One-click recording** from the toolbar (Start / Stop).
+- **Captures during a session:**
+  - Page & browser metadata: URL, title, user agent, viewport, OS, locale, timezone.
+  - Console output (`log` / `info` / `warn` / `error` / `debug`) and uncaught errors / rejections.
+  - User actions: clicks, form inputs, submits, history navigations.
+  - Screenshots — manual on demand, automatic when a console error fires (3 s cooldown).
+  - HAR-lite network log: every `fetch` and `XMLHttpRequest` with method, URL, status, duration, response size.
+  - Free-text notes from the QA (title, severity, repro steps, expected vs actual).
+- **Single-file HTML report** with a sidebar nav, sticky summary card, repro steps, timeline, console, network, actions, screenshots, notes, and raw JSON. Dark mode included. Opens offline by double-clicking.
+- **HAR download** from inside the report so devs can drop network data into Chrome DevTools Network → Import HAR.
+- **Default-on redaction:** password and `tel` inputs, anything matching `password|secret|token|otp|cvv|ssn|credit|card`, and credit-card autocomplete tokens log only `length` (or zero) and a `redacted: true` flag — values never leave the page.
 
-## Develop
+## Install (load unpacked)
 
 ```bash
 npm install
-npm run dev
+npm run build
 ```
 
 Then in Chrome:
 
-1. `chrome://extensions`
-2. Toggle **Developer mode** (top right).
-3. **Load unpacked** → select the `dist/` folder.
+1. Go to `chrome://extensions`.
+2. Toggle **Developer mode** (top-right).
+3. Click **Load unpacked** and select the `dist/` folder.
 4. Pin the extension from the puzzle icon for easy access.
 
-Edit the source — the popup hot-reloads. For background or content-script changes, click the reload icon on the extension card in `chrome://extensions`.
+Chrome will ask for the `<all_urls>` host permission — required so screenshots and content scripts work across navigation.
 
-## Build
+## Use
+
+1. Click the toolbar icon. Enter a **title**, pick a **severity**, optionally write **notes** (repro steps, expected vs actual).
+2. Click **Start recording**.
+3. Use the website normally. Open the popup any time to take an extra screenshot or update notes — the popup is just a view, the session lives in the service worker.
+4. Click **Export report** when you're done. Pick where to save the `.html` file.
+5. Click **Stop recording** if you want to start a new session.
+
+The exported HTML opens in any browser by double-clicking. Send it via Slack, attach it to Jira, drop it into a GitHub issue — it's just one file.
+
+## Privacy
+
+- **100 % local.** No `fetch` to any third-party endpoint, ever. The only network calls during recording are the ones the page itself makes.
+- Captured data lives in `chrome.storage.local` (events, metadata) and IndexedDB (`wr_screenshots`, screenshot blobs). Both are wiped when you start a new session and when you click Stop.
+- The exported `.html` contains only what was captured. Open it in a text editor if you want to verify before sharing.
+- Sensitive inputs are redacted by default — see Features.
+
+## Known limitations
+
+- **HAR-lite** captures `fetch` and `XMLHttpRequest` only. It does **not** see image, script, or CSS resource loads, CORS preflights, or requests fired before the content script attached.
+- The extension can't capture pages with strict CSP that blocks `world: MAIN` injection (some banking sites, some Google products). On those pages, console hooks and HAR-lite both go silent. Page metadata and clicks/inputs still work.
+- The popup closes when it loses focus — that's Chrome's default popup behavior. State survives in the service worker; just re-open the popup.
+- `chrome.tabs.captureVisibleTab` cannot screenshot `chrome://` pages or the Chrome Web Store; recording on those pages will skip screenshots silently.
+- Cross-tab session recording isn't supported. Stay on one tab during a session.
+
+## Develop
 
 ```bash
-npm run build
+npm run dev          # Vite dev mode, watches popup/SW/content
+npm run build        # Production build into dist/
+npm run typecheck    # tsc --noEmit
+npm test             # Vitest (one-shot: npm test -- --run)
+npm run build:viewer # Rebuild only the inlined report bundle
 ```
 
-Output is `dist/`, which is the production extension.
+The report viewer (`src/report/viewer.ts` + `viewer.css`) is bundled separately by [`scripts/build-viewer.mjs`](scripts/build-viewer.mjs) into `src/report/_bundle.ts`, which the service worker imports as strings to inline into each export. `_bundle.ts` is regenerated by `predev`/`prebuild`/`pretypecheck` hooks; it's gitignored.
 
-## Icons
+### Layout
 
-Drop `16.png`, `32.png`, `48.png`, `128.png` into `public/icons/` and add an `icons` block to `manifest.config.ts` when you have them. Chrome will use a default icon until then.
+```
+src/
+├── background/      # service worker: session state machine, screenshots IDB, exporter
+├── content/         # isolated-world bridge + page-world (MAIN) hooks
+├── popup/           # toolbar UI
+├── report/          # template + viewer bundled into every export
+├── shared/          # message contracts, schema, redaction rules
+└── tests/           # vitest unit tests
+```
+
+## Status
+
+Phase 1 + HAR-lite shipped. Optional next steps in [PLAN.md](./PLAN.md): full-page screenshots, settings UI, "Copy as markdown" for Jira/GitHub.
