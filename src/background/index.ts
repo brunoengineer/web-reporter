@@ -1,23 +1,43 @@
 import type { Msg, MsgResponse } from "../shared/messages";
-import { loadSession, startSession, stopSession, updateMeta } from "./session";
+import {
+  appendEvents,
+  loadEvents,
+  loadSession,
+  startSession,
+  stopSession,
+  updateMeta,
+} from "./session";
+
+const buildOk = async (
+  state: "idle" | "recording",
+  meta: Awaited<ReturnType<typeof loadSession>>,
+): Promise<MsgResponse> => {
+  const events = await loadEvents();
+  return { ok: true, state, meta, eventsCount: events.length };
+};
 
 const handle = async (msg: Msg): Promise<MsgResponse> => {
   switch (msg.type) {
     case "GET_STATE": {
       const meta = await loadSession();
-      return { ok: true, state: meta?.state ?? "idle", meta };
+      return buildOk(meta?.state ?? "idle", meta);
     }
     case "START": {
       const meta = await startSession(msg.payload);
-      return { ok: true, state: meta.state, meta };
+      return buildOk(meta.state, meta);
     }
     case "STOP": {
       const meta = await stopSession();
-      return { ok: true, state: "idle", meta };
+      return buildOk("idle", meta);
     }
     case "UPDATE_META": {
       const meta = await updateMeta(msg.payload);
-      return { ok: true, state: meta?.state ?? "idle", meta };
+      return buildOk(meta?.state ?? "idle", meta);
+    }
+    case "APPEND_EVENTS": {
+      await appendEvents(msg.payload);
+      const meta = await loadSession();
+      return buildOk(meta?.state ?? "idle", meta);
     }
   }
 };

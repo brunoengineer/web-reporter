@@ -1,17 +1,21 @@
-import type { SessionMeta, SessionState } from "../shared/schema";
+import type { SessionEvent, SessionMeta, SessionState } from "../shared/schema";
 import type { StartPayload } from "../shared/messages";
 
-const STORAGE_KEY = "wr.session";
+const SESSION_KEY = "wr.session";
+const EVENTS_KEY = "wr.events";
 
 export const loadSession = async (): Promise<SessionMeta | null> => {
-  const data = await chrome.storage.local.get(STORAGE_KEY);
-  return (data[STORAGE_KEY] as SessionMeta | undefined) ?? null;
+  const data = await chrome.storage.local.get(SESSION_KEY);
+  return (data[SESSION_KEY] as SessionMeta | undefined) ?? null;
 };
 
-const save = (meta: SessionMeta) =>
-  chrome.storage.local.set({ [STORAGE_KEY]: meta });
+export const loadEvents = async (): Promise<SessionEvent[]> => {
+  const data = await chrome.storage.local.get(EVENTS_KEY);
+  return (data[EVENTS_KEY] as SessionEvent[] | undefined) ?? [];
+};
 
-const clear = () => chrome.storage.local.remove(STORAGE_KEY);
+const saveSession = (meta: SessionMeta) =>
+  chrome.storage.local.set({ [SESSION_KEY]: meta });
 
 export const startSession = async (input: StartPayload): Promise<SessionMeta> => {
   const meta: SessionMeta = {
@@ -22,14 +26,14 @@ export const startSession = async (input: StartPayload): Promise<SessionMeta> =>
     severity: input.severity,
     notes: input.notes,
   };
-  await save(meta);
+  await chrome.storage.local.set({ [SESSION_KEY]: meta, [EVENTS_KEY]: [] });
   return meta;
 };
 
 export const stopSession = async (): Promise<SessionMeta | null> => {
   const cur = await loadSession();
   if (!cur) return null;
-  await clear();
+  await chrome.storage.local.remove([SESSION_KEY, EVENTS_KEY]);
   return cur;
 };
 
@@ -39,8 +43,18 @@ export const updateMeta = async (
   const cur = await loadSession();
   if (!cur) return null;
   const next: SessionMeta = { ...cur, ...patch };
-  await save(next);
+  await saveSession(next);
   return next;
+};
+
+export const appendEvents = async (events: SessionEvent[]): Promise<number> => {
+  if (events.length === 0) return 0;
+  const session = await loadSession();
+  if (!session || session.state !== "recording") return 0;
+  const cur = await loadEvents();
+  const next = cur.concat(events);
+  await chrome.storage.local.set({ [EVENTS_KEY]: next });
+  return next.length;
 };
 
 export const getState = async (): Promise<SessionState> => {

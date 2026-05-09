@@ -21,6 +21,13 @@ export default defineManifest({
       run_at: "document_start",
       all_frames: false,
     },
+    {
+      matches: ["<all_urls>"],
+      js: ["src/content/injected.ts"],
+      run_at: "document_start",
+      all_frames: false,
+      world: "MAIN",
+    },
   ],
   permissions: ["activeTab", "storage", "scripting", "tabs", "downloads"],
 });

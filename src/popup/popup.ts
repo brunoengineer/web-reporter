@@ -22,18 +22,25 @@ const toggleBtn = $<HTMLButtonElement>("toggle");
 const screenshotBtn = $<HTMLButtonElement>("screenshot");
 const exportBtn = $<HTMLButtonElement>("export");
 const statusEl = $<HTMLSpanElement>("status");
+const eventsCountEl = $<HTMLSpanElement>("events-count");
 const titleEl = $<HTMLInputElement>("title");
 const severityEl = $<HTMLSelectElement>("severity");
 const notesEl = $<HTMLTextAreaElement>("notes");
 
 let state: SessionState = "idle";
 
-const render = () => {
+const render = (eventsCount: number) => {
   statusEl.textContent = state;
   statusEl.className = `status ${state}`;
   toggleBtn.textContent = state === "idle" ? "Start recording" : "Stop recording";
   screenshotBtn.disabled = state !== "recording";
   exportBtn.disabled = state !== "recording";
+  if (state === "recording") {
+    eventsCountEl.hidden = false;
+    eventsCountEl.textContent = `${eventsCount} event${eventsCount === 1 ? "" : "s"}`;
+  } else {
+    eventsCountEl.hidden = true;
+  }
 };
 
 const populate = (meta: SessionMeta | null) => {
@@ -56,7 +63,7 @@ const apply = (res: MsgResponse) => {
   state = res.state;
   if (res.state === "idle") populate(null);
   else populate(res.meta);
-  render();
+  render(res.eventsCount);
 };
 
 toggleBtn.addEventListener("click", async () => {
