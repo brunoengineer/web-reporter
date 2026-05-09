@@ -80,6 +80,18 @@ export type ScreenshotEvent = {
   triggerTs?: number;
 };
 
+export type NetworkEvent = {
+  type: "network";
+  ts: number;
+  method: string;
+  url: string;
+  status: number;
+  duration: number;
+  size?: number;
+  initiator: "fetch" | "xhr";
+  error?: string;
+};
+
 export type SessionEvent =
   | PageEvent
   | ConsoleEvent
@@ -88,4 +100,5 @@ export type SessionEvent =
   | FormInputEvent
   | FormSubmitEvent
   | NavEvent
-  | ScreenshotEvent;
+  | ScreenshotEvent
+  | NetworkEvent;

@@ -2,6 +2,7 @@ import type {
   ConsoleEvent,
   ConsoleLevel,
   NavEvent,
+  NetworkEvent,
   RuntimeErrorEvent,
   SessionEvent,
 } from "../shared/schema";
@@ -94,3 +95,122 @@ history.replaceState = function (...args: Parameters<History["replaceState"]>) {
 };
 
 window.addEventListener("popstate", () => emitNav("popstate"));
+
+// ----- Network: fetch + XHR (HAR-lite) -----
+
+const buildNetworkEvent = (
+  method: string,
+  url: string,
+  status: number,
+  ts: number,
+  startMs: number,
+  initiator: NetworkEvent["initiator"],
+  size: number | undefined,
+  error: string | undefined,
+): NetworkEvent => {
+  const ev: NetworkEvent = {
+    type: "network",
+    ts,
+    method,
+    url,
+    status,
+    duration: Math.round(performance.now() - startMs),
+    initiator,
+  };
+  if (size !== undefined && !Number.isNaN(size)) ev.size = size;
+  if (error) ev.error = error;
+  return ev;
+};
+
+const origFetch = window.fetch.bind(window);
+window.fetch = async function (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const startMs = performance.now();
+  const ts = Date.now();
+  const method = (
+    init?.method ??
+    (input instanceof Request ? input.method : undefined) ??
+    "GET"
+  ).toUpperCase();
+  const url =
+    typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : input instanceof Request
+          ? input.url
+          : String(input);
+
+  try {
+    const response = await origFetch(input, init);
+    const cl = response.headers.get("content-length");
+    const size = cl ? Number.parseInt(cl, 10) : undefined;
+    try {
+      post(buildNetworkEvent(method, url, response.status, ts, startMs, "fetch", size, undefined));
+    } catch {
+      // never let our hook break the page
+    }
+    return response;
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    try {
+      post(buildNetworkEvent(method, url, 0, ts, startMs, "fetch", undefined, errMsg));
+    } catch {
+      // swallow
+    }
+    throw err;
+  }
+};
+
+type XHRMeta = { method: string; url: string; startMs: number; ts: number };
+type WrXHR = XMLHttpRequest & { __wrMeta?: XHRMeta };
+
+const origOpen = XMLHttpRequest.prototype.open;
+const origSend = XMLHttpRequest.prototype.send;
+
+XMLHttpRequest.prototype.open = function (
+  this: XMLHttpRequest,
+  method: string,
+  url: string | URL,
+  async?: boolean,
+  username?: string | null,
+  password?: string | null,
+): void {
+  (this as WrXHR).__wrMeta = {
+    method: method.toUpperCase(),
+    url: String(url),
+    startMs: 0,
+    ts: 0,
+  };
+  return origOpen.call(this, method, url, async ?? true, username, password);
+};
+
+XMLHttpRequest.prototype.send = function (
+  this: XMLHttpRequest,
+  body?: Document | XMLHttpRequestBodyInit | null,
+): void {
+  const meta = (this as WrXHR).__wrMeta;
+  if (meta) {
+    meta.startMs = performance.now();
+    meta.ts = Date.now();
+    this.addEventListener("loadend", () => {
+      let size: number | undefined;
+      try {
+        const cl = this.getResponseHeader("content-length");
+        if (cl) size = Number.parseInt(cl, 10);
+      } catch {
+        // some XHRs don't expose headers (CORS); ignore
+      }
+      try {
+        post(
+          buildNetworkEvent(meta.method, meta.url, this.status, meta.ts, meta.startMs, "xhr", size, undefined),
+        );
+      } catch {
+        // swallow
+      }
+    });
+  }
+  return origSend.call(this, body);
+};

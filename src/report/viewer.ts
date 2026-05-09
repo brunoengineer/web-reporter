@@ -4,6 +4,7 @@ import type {
   FormInputEvent,
   FormSubmitEvent,
   NavEvent,
+  NetworkEvent,
   PageEvent,
   RuntimeErrorEvent,
   ScreenshotEvent,
@@ -132,6 +133,11 @@ type Stats = {
   clicks: number;
   inputs: number;
   submits: number;
+  network: number;
+  netOk: number;
+  net4xx: number;
+  net5xx: number;
+  netFail: number;
 };
 
 const computeStats = (events: SessionEvent[]): Stats => {
@@ -150,6 +156,11 @@ const computeStats = (events: SessionEvent[]): Stats => {
     clicks: 0,
     inputs: 0,
     submits: 0,
+    network: 0,
+    netOk: 0,
+    net4xx: 0,
+    net5xx: 0,
+    netFail: 0,
   };
   for (const e of events) {
     switch (e.type) {
@@ -190,6 +201,14 @@ const computeStats = (events: SessionEvent[]): Stats => {
       case "page":
         // page events count as a kind of nav too
         break;
+      case "network": {
+        s.network++;
+        if (e.status === 0) s.netFail++;
+        else if (e.status >= 200 && e.status < 400) s.netOk++;
+        else if (e.status >= 400 && e.status < 500) s.net4xx++;
+        else if (e.status >= 500) s.net5xx++;
+        break;
+      }
     }
   }
   return s;
@@ -302,6 +321,10 @@ const renderSummary = (data: ReportData, stats: Stats): HTMLElement => {
           el("span", { class: "stat-num" }, String(stats.navs)),
           " navs",
         ]),
+        el("span", { class: "stat" }, [
+          el("span", { class: "stat-num" }, String(stats.network)),
+          " requests",
+        ]),
       ]),
     ]),
     renderSparkline(events, meta.startedAt, data.endedAt) as Node | null,
@@ -315,6 +338,7 @@ const SECTIONS: { id: string; label: string }[] = [
   { id: "repro", label: "Repro Steps" },
   { id: "timeline", label: "Timeline" },
   { id: "console", label: "Console" },
+  { id: "network", label: "Network" },
   { id: "actions", label: "Actions" },
   { id: "screenshots", label: "Screenshots" },
   { id: "notes", label: "Notes" },
@@ -455,6 +479,7 @@ const TIMELINE_LANES: { key: string; label: string; color: string; match: (e: Se
   { key: "errors", label: "Errors", color: "var(--danger)", match: (e) => isError(e) },
   { key: "actions", label: "Actions", color: "var(--info)", match: (e) =>
     e.type === "click" || e.type === "input" || e.type === "submit" || e.type === "nav" || e.type === "page" },
+  { key: "network", label: "Network", color: "var(--purple)", match: (e) => e.type === "network" },
   { key: "console", label: "Console", color: "var(--muted)", match: (e) => isConsoleEvent(e) && e.level !== "error" && e.level !== "warn" },
 ];
 
@@ -477,6 +502,8 @@ const describeForTooltip = (e: SessionEvent): string => {
       return `${t} · page ${truncate(e.url, 60)}`;
     case "screenshot":
       return `${t} · ${e.kind} screenshot`;
+    case "network":
+      return `${t} · ${e.method} ${e.status || "ERR"} · ${truncate(e.url, 60)}`;
   }
 };
 
@@ -652,6 +679,116 @@ const renderConsole = (data: ReportData, stats: Stats): HTMLElement => {
             el("th", {}, "Level"),
             el("th", {}, "Message"),
             el("th", {}, "Source"),
+          ]),
+        ]),
+        tbody,
+      ]),
+    ]),
+  ]);
+};
+
+// ------------------------- Network -------------------------
+
+const fmtSize = (n: number | undefined): string => {
+  if (n === undefined || Number.isNaN(n)) return "—";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+};
+
+const statusClass = (status: number): string => {
+  if (status === 0) return "level-error";
+  if (status >= 200 && status < 300) return "level-info";
+  if (status >= 300 && status < 400) return "level-log";
+  if (status >= 400 && status < 500) return "level-warn";
+  return "level-error";
+};
+
+const renderNetwork = (data: ReportData, stats: Stats): HTMLElement => {
+  const events = data.events.filter((e): e is NetworkEvent => e.type === "network");
+
+  if (events.length === 0) {
+    return el("div", { class: "card empty" }, [
+      "No network requests captured. ",
+      el("br"),
+      "HAR-lite captures fetch/XHR after the page loads — image, script, and CSS asset requests are not included.",
+    ]);
+  }
+
+  type Filter = "all" | "ok" | "4xx" | "5xx" | "fail";
+  const filters: { key: Filter; label: string; count: number }[] = [
+    { key: "all", label: "All", count: stats.network },
+    { key: "ok", label: "2xx/3xx", count: stats.netOk },
+    { key: "4xx", label: "4xx", count: stats.net4xx },
+    { key: "5xx", label: "5xx", count: stats.net5xx },
+    { key: "fail", label: "Failed", count: stats.netFail },
+  ];
+
+  let active: Filter = "all";
+
+  const matches = (e: NetworkEvent, f: Filter): boolean => {
+    if (f === "all") return true;
+    if (f === "fail") return e.status === 0;
+    if (f === "ok") return e.status >= 200 && e.status < 400;
+    if (f === "4xx") return e.status >= 400 && e.status < 500;
+    if (f === "5xx") return e.status >= 500;
+    return true;
+  };
+
+  const tbody = el("tbody");
+  const renderRows = () => {
+    tbody.replaceChildren();
+    for (const e of events) {
+      if (!matches(e, active)) continue;
+      const statusLabel = e.status === 0 ? "ERR" : String(e.status);
+      tbody.appendChild(
+        el("tr", {}, [
+          el("td", { class: "col-time" }, fmtTime(e.ts)),
+          el("td", { class: "col-type" }, e.method),
+          el("td", { class: "col-msg" }, [
+            el("span", { class: statusClass(e.status) + " level-pill" }, statusLabel),
+            e.error
+              ? el("span", { style: "color:var(--danger);margin-left:6px;font-size:11px" }, e.error)
+              : null,
+          ]),
+          el("td", { class: "col-selector" }, truncate(e.url, 100)),
+          el("td", { class: "col-time" }, `${e.duration} ms`),
+          el("td", { class: "col-time" }, fmtSize(e.size)),
+          el("td", { class: "col-type" }, e.initiator),
+        ]),
+      );
+    }
+  };
+  renderRows();
+
+  const pillEls = filters.map((f) => {
+    const p = el(
+      "button",
+      { class: "pill" + (f.key === active ? " active" : ""), type: "button" },
+      `${f.label} ${f.count}`,
+    );
+    p.addEventListener("click", () => {
+      active = f.key;
+      pillEls.forEach((pe) => pe.classList.remove("active"));
+      p.classList.add("active");
+      renderRows();
+    });
+    return p;
+  });
+
+  return el("div", {}, [
+    el("div", { class: "filters" }, pillEls),
+    el("div", { class: "table-wrap" }, [
+      el("table", {}, [
+        el("thead", {}, [
+          el("tr", {}, [
+            el("th", {}, "Time"),
+            el("th", {}, "Method"),
+            el("th", {}, "Status"),
+            el("th", {}, "URL"),
+            el("th", {}, "Duration"),
+            el("th", {}, "Size"),
+            el("th", {}, "Init"),
           ]),
         ]),
         tbody,
@@ -953,6 +1090,10 @@ const bootstrap = () => {
     el("section", { id: "console" }, [
       el("h2", { class: "section-h" }, "Console"),
       renderConsole(data, stats),
+    ]),
+    el("section", { id: "network" }, [
+      el("h2", { class: "section-h" }, "Network"),
+      renderNetwork(data, stats),
     ]),
     el("section", { id: "actions" }, [
       el("h2", { class: "section-h" }, "Actions"),
