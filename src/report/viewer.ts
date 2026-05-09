@@ -704,6 +704,57 @@ const statusClass = (status: number): string => {
   return "level-error";
 };
 
+const buildHar = (events: NetworkEvent[]): unknown => ({
+  log: {
+    version: "1.2",
+    creator: { name: "Web Reporter", version: "0.1.0" },
+    browser: { name: "Chrome", version: "" },
+    pages: [],
+    entries: events.map((e) => ({
+      startedDateTime: new Date(e.ts).toISOString(),
+      time: e.duration,
+      request: {
+        method: e.method,
+        url: e.url,
+        httpVersion: "HTTP/1.1",
+        headers: [],
+        queryString: [],
+        cookies: [],
+        headersSize: -1,
+        bodySize: -1,
+      },
+      response: {
+        status: e.status,
+        statusText: "",
+        httpVersion: "HTTP/1.1",
+        headers: [],
+        cookies: [],
+        content: { size: e.size ?? -1, mimeType: "" },
+        redirectURL: "",
+        headersSize: -1,
+        bodySize: e.size ?? -1,
+      },
+      cache: {},
+      timings: { send: 0, wait: e.duration, receive: 0 },
+      ...(e.error ? { _error: e.error } : {}),
+      _initiator: e.initiator,
+    })),
+  },
+});
+
+const downloadHar = (events: NetworkEvent[]) => {
+  const json = JSON.stringify(buildHar(events), null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "session.har";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
 const renderNetwork = (data: ReportData, stats: Stats): HTMLElement => {
   const events = data.events.filter((e): e is NetworkEvent => e.type === "network");
 
@@ -714,6 +765,18 @@ const renderNetwork = (data: ReportData, stats: Stats): HTMLElement => {
       "HAR-lite captures fetch/XHR after the page loads — image, script, and CSS asset requests are not included.",
     ]);
   }
+
+  const harBtn = el("button", { class: "har-btn", type: "button" }, "Download .har");
+  harBtn.addEventListener("click", () => downloadHar(events));
+
+  const head = el("div", { class: "network-head" }, [
+    el(
+      "div",
+      { class: "net-summary" },
+      `${stats.network} requests · ${stats.netOk} OK · ${stats.net4xx} 4xx · ${stats.net5xx} 5xx · ${stats.netFail} failed`,
+    ),
+    harBtn,
+  ]);
 
   type Filter = "all" | "ok" | "4xx" | "5xx" | "fail";
   const filters: { key: Filter; label: string; count: number }[] = [
@@ -776,7 +839,7 @@ const renderNetwork = (data: ReportData, stats: Stats): HTMLElement => {
     return p;
   });
 
-  return el("div", {}, [
+  const body = el("div", { class: "collapse-body" }, [
     el("div", { class: "filters" }, pillEls),
     el("div", { class: "table-wrap" }, [
       el("table", {}, [
@@ -793,6 +856,14 @@ const renderNetwork = (data: ReportData, stats: Stats): HTMLElement => {
         ]),
         tbody,
       ]),
+    ]),
+  ]);
+
+  return el("div", {}, [
+    head,
+    el("details", { class: "collapse" }, [
+      el("summary", {}, `Show ${events.length} requests`),
+      body,
     ]),
   ]);
 };

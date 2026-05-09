@@ -247,16 +247,26 @@ main {
 
 section {
   margin-bottom: 40px;
-  scroll-margin-top: 100px;
+  scroll-margin-top: 140px;
+  padding-top: 4px;
 }
 
 .section-h {
-  font-size: 13px;
+  font-size: 18px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-  margin: 0 0 12px 0;
+  letter-spacing: 0;
+  color: var(--fg);
+  margin: 0 0 14px 0;
+}
+
+.section-h::after {
+  content: "";
+  display: block;
+  width: 24px;
+  height: 2px;
+  background: var(--accent);
+  margin-top: 6px;
+  border-radius: 1px;
 }
 
 .card {
@@ -544,6 +554,79 @@ td.col-selector {
   background: var(--accent);
   border-color: var(--accent);
   color: #ffffff;
+}
+
+/* ------------- Network section ------------- */
+
+.network-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.network-head .net-summary {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.har-btn {
+  background: var(--bg-card);
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.har-btn:hover {
+  background: var(--bg-soft);
+}
+
+details.collapse {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+details.collapse > summary {
+  cursor: pointer;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--fg);
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+details.collapse > summary::before {
+  content: "▸";
+  display: inline-block;
+  color: var(--muted);
+  transition: transform 0.1s;
+}
+
+details.collapse[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+details.collapse > summary:hover {
+  background: var(--bg-soft);
+}
+
+details.collapse[open] > summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.collapse-body {
+  padding: 12px 14px;
 }
 
 /* ------------- Stack traces ------------- */
