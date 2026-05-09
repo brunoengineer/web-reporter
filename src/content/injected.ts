@@ -1,4 +1,10 @@
-import type { ConsoleEvent, ConsoleLevel, RuntimeErrorEvent, SessionEvent } from "../shared/schema";
+import type {
+  ConsoleEvent,
+  ConsoleLevel,
+  NavEvent,
+  RuntimeErrorEvent,
+  SessionEvent,
+} from "../shared/schema";
 
 const TAG = "__wr_event__";
 
@@ -62,3 +68,29 @@ window.addEventListener("unhandledrejection", (e) => {
   };
   post(ev);
 });
+
+const emitNav = (kind: NavEvent["kind"]) => {
+  const ev: NavEvent = {
+    type: "nav",
+    ts: Date.now(),
+    url: location.href,
+    kind,
+  };
+  post(ev);
+};
+
+const origPushState = history.pushState.bind(history);
+history.pushState = function (...args: Parameters<History["pushState"]>) {
+  const ret = origPushState(...args);
+  emitNav("pushstate");
+  return ret;
+};
+
+const origReplaceState = history.replaceState.bind(history);
+history.replaceState = function (...args: Parameters<History["replaceState"]>) {
+  const ret = origReplaceState(...args);
+  emitNav("replacestate");
+  return ret;
+};
+
+window.addEventListener("popstate", () => emitNav("popstate"));

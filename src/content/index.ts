@@ -1,5 +1,6 @@
 import type { Msg } from "../shared/messages";
 import type { PageEvent, SessionEvent } from "../shared/schema";
+import { attachActionListeners } from "./actions";
 
 const TAG = "__wr_event__";
 
@@ -35,6 +36,8 @@ window.addEventListener("message", (e) => {
   if (!data || data[TAG] !== true) return;
   enqueue(data.event as SessionEvent);
 });
+
+attachActionListeners(enqueue);
 
 const sendPageEvent = () => {
   const ev: PageEvent = {

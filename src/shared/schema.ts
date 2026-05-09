@@ -41,4 +41,42 @@ export type RuntimeErrorEvent = {
   source?: string;
 };
 
-export type SessionEvent = PageEvent | ConsoleEvent | RuntimeErrorEvent;
+export type ClickEvent = {
+  type: "click";
+  ts: number;
+  selector: string;
+  tag: string;
+  text?: string;
+  href?: string;
+};
+
+export type FormInputEvent = {
+  type: "input";
+  ts: number;
+  selector: string;
+  inputType: string;
+  length: number;
+  redacted: boolean;
+};
+
+export type FormSubmitEvent = {
+  type: "submit";
+  ts: number;
+  selector: string;
+};
+
+export type NavEvent = {
+  type: "nav";
+  ts: number;
+  url: string;
+  kind: "pushstate" | "replacestate" | "popstate";
+};
+
+export type SessionEvent =
+  | PageEvent
+  | ConsoleEvent
+  | RuntimeErrorEvent
+  | ClickEvent
+  | FormInputEvent
+  | FormSubmitEvent
+  | NavEvent;
