@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Web Reporter</title>
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Web Reporter</h1>
+      <span id="status" class="status idle">idle</span>
+    </header>
+
+    <main>
+      <div class="controls">
+        <button id="toggle" class="primary">Start recording</button>
+        <button id="screenshot" disabled>Take screenshot</button>
+      </div>
+
+      <label>
+        <span>Title</span>
+        <input id="title" type="text" placeholder="Login fails after submit" />
+      </label>
+
+      <label>
+        <span>Severity</span>
+        <select id="severity">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Notes</span>
+        <textarea
+          id="notes"
+          rows="4"
+          placeholder="Steps to reproduce, expected vs actual…"
+        ></textarea>
+      </label>
+
+      <button id="export" class="primary" disabled>Export report</button>
+    </main>
+
+    <script type="module" src="./popup.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "web-reporter",
+  "version": "0.1.0",
+  "description": "Chrome extension for QA engineers to record manual-test sessions and export a single-file HTML bug report. 100% local.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.0.0",
+    "@types/chrome": "^0.0.268",
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0",
+    "vitest": "^2.0.0"
+  }
+}
