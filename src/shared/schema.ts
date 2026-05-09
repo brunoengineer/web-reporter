@@ -72,6 +72,14 @@ export type NavEvent = {
   kind: "pushstate" | "replacestate" | "popstate";
 };
 
+export type ScreenshotEvent = {
+  type: "screenshot";
+  ts: number;
+  id: string;
+  kind: "manual" | "auto";
+  triggerTs?: number;
+};
+
 export type SessionEvent =
   | PageEvent
   | ConsoleEvent
@@ -79,4 +87,5 @@ export type SessionEvent =
   | ClickEvent
   | FormInputEvent
   | FormSubmitEvent
-  | NavEvent;
+  | NavEvent
+  | ScreenshotEvent;

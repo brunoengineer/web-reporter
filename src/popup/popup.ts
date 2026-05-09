@@ -101,8 +101,9 @@ severityEl.addEventListener("change", () =>
 );
 notesEl.addEventListener("input", () => pushMeta({ notes: notesEl.value }));
 
-screenshotBtn.addEventListener("click", () => {
-  // wired up in a later commit
+screenshotBtn.addEventListener("click", async () => {
+  screenshotBtn.disabled = true;
+  apply(await send({ type: "TAKE_SCREENSHOT" }));
 });
 
 exportBtn.addEventListener("click", () => {

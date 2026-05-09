@@ -1,5 +1,6 @@
 import type { SessionEvent, SessionMeta, SessionState } from "../shared/schema";
 import type { StartPayload } from "../shared/messages";
+import { clearScreenshots } from "./screenshots";
 
 const SESSION_KEY = "wr.session";
 const EVENTS_KEY = "wr.events";
@@ -37,6 +38,7 @@ export const startSession = (input: StartPayload): Promise<SessionMeta> =>
       notes: input.notes,
     };
     await chrome.storage.local.set({ [SESSION_KEY]: meta, [EVENTS_KEY]: [] });
+    await clearScreenshots();
     return meta;
   });
 
@@ -45,6 +47,7 @@ export const stopSession = (): Promise<SessionMeta | null> =>
     const cur = await loadSession();
     if (!cur) return null;
     await chrome.storage.local.remove([SESSION_KEY, EVENTS_KEY]);
+    await clearScreenshots();
     return cur;
   });
 

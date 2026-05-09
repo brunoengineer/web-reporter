@@ -29,5 +29,6 @@ export default defineManifest({
       world: "MAIN",
     },
   ],
-  permissions: ["activeTab", "storage", "scripting", "tabs", "downloads"],
+  permissions: ["storage", "scripting", "tabs", "downloads"],
+  host_permissions: ["<all_urls>"],
 });
