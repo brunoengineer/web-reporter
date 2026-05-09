@@ -67,6 +67,16 @@ export const buildReportHtml = (
 </html>`;
 };
 
+const toDataUrl = (html: string): string => {
+  const bytes = new TextEncoder().encode(html);
+  let bin = "";
+  const CHUNK = 8192;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return `data:text/html;base64,${btoa(bin)}`;
+};
+
 export const exportSession = async (): Promise<{ filename: string; bytes: number }> => {
   const meta = await loadSession();
   if (!meta) throw new Error("No active session to export");
@@ -74,14 +84,15 @@ export const exportSession = async (): Promise<{ filename: string; bytes: number
   const endedAt = Date.now();
 
   const html = buildReportHtml(meta, events, endedAt, screenshots);
-  const blob = new Blob([html], { type: "text/html" });
-  const url = URL.createObjectURL(blob);
   const filename = `web-reporter-${slugify(meta.title)}-${ts()}.html`;
+  const url = toDataUrl(html);
 
   try {
-    await chrome.downloads.download({ url, filename, saveAs: true });
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    const id = await chrome.downloads.download({ url, filename, saveAs: true });
+    console.log(`[web-reporter] export started, download id=${id}, ${html.length} bytes`);
+  } catch (err) {
+    console.error("[web-reporter] export failed:", err);
+    throw err;
   }
 
   return { filename, bytes: html.length };
