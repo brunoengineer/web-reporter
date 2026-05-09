@@ -3,9 +3,10 @@ import type { SessionEvent, SessionMeta } from "../shared/schema";
 import { loadEvents, loadSession } from "./session";
 import { loadAllScreenshots } from "./screenshots";
 
-const escapeForJsonScript = (s: string): string => s.replace(/<\/script/gi, "<\\/script");
+export const escapeForJsonScript = (s: string): string =>
+  s.replace(/<\/script/gi, "<\\/script");
 
-const escapeHtml = (s: string): string =>
+export const escapeHtml = (s: string): string =>
   s.replace(/[&<>"']/g, (c) => {
     switch (c) {
       case "&":
@@ -23,7 +24,7 @@ const escapeHtml = (s: string): string =>
     }
   });
 
-const slugify = (s: string): string => {
+export const slugify = (s: string): string => {
   const base = s
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
