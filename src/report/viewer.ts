@@ -197,38 +197,49 @@ const computeStats = (events: SessionEvent[]): Stats => {
 
 // ------------------------- Sparkline (errors over time) -------------------------
 
-const renderSparkline = (events: SessionEvent[], startedAt: number, endedAt: number): SVGElement => {
+const renderSparkline = (
+  events: SessionEvent[],
+  startedAt: number,
+  endedAt: number,
+): SVGElement | null => {
+  const errors = events.filter(isError);
+  if (errors.length === 0) return null;
+
   const W = 140;
   const H = 36;
-  const buckets = 24;
   const dur = Math.max(endedAt - startedAt, 1);
-  const counts = new Array(buckets).fill(0) as number[];
-  for (const e of events) {
-    if (!isError(e)) continue;
-    const idx = Math.min(
-      buckets - 1,
-      Math.max(0, Math.floor(((e.ts - startedAt) / dur) * buckets)),
-    );
-    counts[idx]++;
-  }
-  const max = Math.max(1, ...counts);
-  const points = counts
-    .map((c, i) => {
-      const x = (i / (buckets - 1)) * W;
-      const y = H - (c / max) * H;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  return svg("svg", { class: "summary-spark", viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none" }, [
-    svg("polyline", {
-      points,
-      fill: "none",
-      stroke: "var(--danger)",
-      "stroke-width": "1.5",
-      "stroke-linecap": "round",
-      "stroke-linejoin": "round",
+
+  const baselineY = H / 2;
+  const tickH = 14;
+  const children: SVGElement[] = [
+    svg("line", {
+      x1: 0,
+      x2: W,
+      y1: baselineY,
+      y2: baselineY,
+      stroke: "var(--border)",
+      "stroke-width": "1",
     }),
-  ]);
+  ];
+  for (const e of errors) {
+    const x = ((e.ts - startedAt) / dur) * W;
+    children.push(
+      svg("line", {
+        x1: x.toFixed(1),
+        x2: x.toFixed(1),
+        y1: baselineY - tickH / 2,
+        y2: baselineY + tickH / 2,
+        stroke: "var(--danger)",
+        "stroke-width": "1.5",
+        "stroke-linecap": "round",
+      }),
+    );
+  }
+  return svg(
+    "svg",
+    { class: "summary-spark", viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none" },
+    children,
+  );
 };
 
 // ------------------------- Summary card -------------------------
@@ -293,7 +304,7 @@ const renderSummary = (data: ReportData, stats: Stats): HTMLElement => {
         ]),
       ]),
     ]),
-    renderSparkline(events, meta.startedAt, data.endedAt),
+    renderSparkline(events, meta.startedAt, data.endedAt) as Node | null,
     themeBtn,
   ]);
 };
@@ -860,21 +871,35 @@ const setupActiveSection = () => {
     const t = a.getAttribute("data-target");
     if (t) links.set(t, a);
   });
-  const obs = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        const id = entry.target.id;
-        const a = links.get(id);
-        if (!a) return;
-        if (entry.isIntersecting) {
-          links.forEach((l) => l.classList.remove("active"));
-          a.classList.add("active");
-        }
-      });
-    },
-    { rootMargin: "-100px 0px -60% 0px", threshold: 0 },
-  );
-  document.querySelectorAll("section[id]").forEach((s) => obs.observe(s));
+  const sections = Array.from(document.querySelectorAll<HTMLElement>("section[id]"));
+  if (sections.length === 0) return;
+
+  const update = () => {
+    const offset = 120;
+    let active = sections[0]!.id;
+    for (const s of sections) {
+      if (s.getBoundingClientRect().top - offset <= 0) {
+        active = s.id;
+      } else {
+        break;
+      }
+    }
+    links.forEach((a, id) => a.classList.toggle("active", id === active));
+  };
+
+  let scheduled = false;
+  const onScroll = () => {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      update();
+    });
+  };
+
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll, { passive: true });
+  update();
 };
 
 // ------------------------- Empty state -------------------------
