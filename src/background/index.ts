@@ -1,6 +1,7 @@
 import type { Msg, MsgResponse } from "../shared/messages";
 import {
   appendEvents,
+  getEventsBytes,
   loadEvents,
   loadSession,
   startSession,
@@ -12,8 +13,8 @@ const buildOk = async (
   state: "idle" | "recording",
   meta: Awaited<ReturnType<typeof loadSession>>,
 ): Promise<MsgResponse> => {
-  const events = await loadEvents();
-  return { ok: true, state, meta, eventsCount: events.length };
+  const [events, eventsBytes] = await Promise.all([loadEvents(), getEventsBytes()]);
+  return { ok: true, state, meta, eventsCount: events.length, eventsBytes };
 };
 
 const handle = async (msg: Msg): Promise<MsgResponse> => {

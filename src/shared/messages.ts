@@ -18,6 +18,7 @@ export type MsgOk = {
   state: SessionState;
   meta: SessionMeta | null;
   eventsCount: number;
+  eventsBytes: number;
 };
 
 export type MsgErr = {

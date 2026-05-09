@@ -29,7 +29,13 @@ const notesEl = $<HTMLTextAreaElement>("notes");
 
 let state: SessionState = "idle";
 
-const render = (eventsCount: number) => {
+const formatBytes = (n: number): string => {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+};
+
+const render = (eventsCount: number, eventsBytes: number) => {
   statusEl.textContent = state;
   statusEl.className = `status ${state}`;
   toggleBtn.textContent = state === "idle" ? "Start recording" : "Stop recording";
@@ -37,7 +43,8 @@ const render = (eventsCount: number) => {
   exportBtn.disabled = state !== "recording";
   if (state === "recording") {
     eventsCountEl.hidden = false;
-    eventsCountEl.textContent = `${eventsCount} event${eventsCount === 1 ? "" : "s"}`;
+    const noun = eventsCount === 1 ? "event" : "events";
+    eventsCountEl.textContent = `${eventsCount} ${noun} · ${formatBytes(eventsBytes)}`;
   } else {
     eventsCountEl.hidden = true;
   }
@@ -63,7 +70,7 @@ const apply = (res: MsgResponse) => {
   state = res.state;
   if (res.state === "idle") populate(null);
   else populate(res.meta);
-  render(res.eventsCount);
+  render(res.eventsCount, res.eventsBytes);
 };
 
 toggleBtn.addEventListener("click", async () => {
