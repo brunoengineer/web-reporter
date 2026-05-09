@@ -10,6 +10,7 @@ import {
   updateMeta,
 } from "./session";
 import { saveScreenshot } from "./screenshots";
+import { exportSession } from "./exporter";
 
 const AUTO_COOLDOWN_MS = 3000;
 let lastAutoAt = 0;
@@ -89,6 +90,11 @@ const handle = async (msg: Msg): Promise<MsgResponse> => {
     }
     case "TAKE_SCREENSHOT": {
       await captureAndAppend("manual");
+      const meta = await loadSession();
+      return buildOk(meta?.state ?? "idle", meta);
+    }
+    case "EXPORT": {
+      await exportSession();
       const meta = await loadSession();
       return buildOk(meta?.state ?? "idle", meta);
     }

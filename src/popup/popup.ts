@@ -106,8 +106,9 @@ screenshotBtn.addEventListener("click", async () => {
   apply(await send({ type: "TAKE_SCREENSHOT" }));
 });
 
-exportBtn.addEventListener("click", () => {
-  // wired up in a later commit
+exportBtn.addEventListener("click", async () => {
+  exportBtn.disabled = true;
+  apply(await send({ type: "EXPORT" }));
 });
 
 (async () => {

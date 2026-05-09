@@ -12,7 +12,8 @@ export type Msg =
   | { type: "STOP" }
   | { type: "UPDATE_META"; payload: Partial<Pick<SessionMeta, "title" | "severity" | "notes">> }
   | { type: "APPEND_EVENTS"; payload: SessionEvent[] }
-  | { type: "TAKE_SCREENSHOT" };
+  | { type: "TAKE_SCREENSHOT" }
+  | { type: "EXPORT" };
 
 export type MsgOk = {
   ok: true;

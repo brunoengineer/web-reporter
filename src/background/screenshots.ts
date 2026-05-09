@@ -41,6 +41,26 @@ export const loadScreenshot = async (id: string): Promise<string | null> => {
   });
 };
 
+export const loadAllScreenshots = async (): Promise<Record<string, string>> => {
+  const db = await openDb();
+  return new Promise<Record<string, string>>((resolve, reject) => {
+    const tx = db.transaction(STORE, "readonly");
+    const store = tx.objectStore(STORE);
+    const out: Record<string, string> = {};
+    const req = store.openCursor();
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (cursor) {
+        out[String(cursor.key)] = cursor.value as string;
+        cursor.continue();
+      } else {
+        resolve(out);
+      }
+    };
+    req.onerror = () => reject(req.error);
+  });
+};
+
 export const clearScreenshots = async (): Promise<void> => {
   const db = await openDb();
   return new Promise<void>((resolve, reject) => {
