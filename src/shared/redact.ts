@@ -30,3 +30,18 @@ export const isSensitiveInput = (el: HTMLInputElement | HTMLTextAreaElement): bo
     id: el.id || undefined,
     autocomplete: el.getAttribute("autocomplete") ?? undefined,
   });
+
+const SENSITIVE_HEADER_RE =
+  /^(authorization|proxy-authorization|cookie|set-cookie|x-auth-token|x-csrf-token|x-api-key|x-access-token|x-session-token)$/i;
+
+export const isSensitiveHeader = (name: string): boolean => SENSITIVE_HEADER_RE.test(name);
+
+export const redactHeaders = (
+  headers: Record<string, string>,
+): Record<string, string> => {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(headers)) {
+    out[k] = isSensitiveHeader(k) ? "[REDACTED]" : v;
+  }
+  return out;
+};

@@ -90,6 +90,16 @@ export type NetworkEvent = {
   size?: number;
   initiator: "fetch" | "xhr";
   error?: string;
+  requestHeaders?: Record<string, string>;
+  requestContentType?: string;
+  requestBody?: string;
+  requestBodyTruncated?: boolean;
+  requestBodyNote?: string;
+  responseHeaders?: Record<string, string>;
+  responseContentType?: string;
+  responseBody?: string;
+  responseBodyTruncated?: boolean;
+  responseBodyNote?: string;
 };
 
 export type SessionEvent =

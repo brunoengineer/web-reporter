@@ -755,6 +755,122 @@ const downloadHar = (events: NetworkEvent[]) => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
+const tryPrettyJson = (s: string): string => {
+  try {
+    return JSON.stringify(JSON.parse(s), null, 2);
+  } catch {
+    return s;
+  }
+};
+
+const renderHeadersTable = (headers: Record<string, string>): HTMLElement => {
+  const entries = Object.entries(headers);
+  if (entries.length === 0) {
+    return el("div", { class: "detail-empty" }, "(none)");
+  }
+  return el(
+    "table",
+    { class: "headers-table" },
+    el(
+      "tbody",
+      {},
+      entries.map(([k, v]) =>
+        el("tr", {}, [
+          el("td", { class: "header-name" }, k),
+          el("td", { class: "header-value" }, v),
+        ]),
+      ),
+    ),
+  );
+};
+
+const renderBodyBlock = (
+  body: string | undefined,
+  contentType: string | undefined,
+  truncated: boolean | undefined,
+  note: string | undefined,
+): HTMLElement => {
+  if (body === undefined) {
+    return el("div", { class: "detail-empty" }, note ?? "(no body)");
+  }
+  const isJson = !!contentType && contentType.toLowerCase().includes("json");
+  const display = isJson ? tryPrettyJson(body) : body;
+  const children: Child[] = [el("pre", { class: "body-pre" }, display)];
+  if (truncated) {
+    children.unshift(
+      el(
+        "div",
+        { class: "body-warn" },
+        `Truncated to ${fmtSize(body.length)} — full body was longer.`,
+      ),
+    );
+  }
+  if (note) {
+    children.unshift(el("div", { class: "body-warn" }, note));
+  }
+  return el("div", {}, children);
+};
+
+const renderNetworkDetail = (e: NetworkEvent): HTMLElement => {
+  const hasReqDetails =
+    !!e.requestHeaders ||
+    e.requestBody !== undefined ||
+    e.requestBodyNote !== undefined;
+  const hasRespDetails =
+    !!e.responseHeaders ||
+    e.responseBody !== undefined ||
+    e.responseBodyNote !== undefined;
+
+  if (!hasReqDetails && !hasRespDetails) {
+    return el(
+      "div",
+      { class: "net-detail-empty" },
+      "Request/response details were not captured for this entry. (Older sessions may not have this data.)",
+    );
+  }
+
+  return el("div", { class: "net-detail" }, [
+    el("div", { class: "net-detail-row" }, [
+      el("div", { class: "net-detail-label" }, "URL"),
+      el("div", { class: "net-detail-url" }, e.url),
+    ]),
+    el("div", { class: "net-detail-section" }, [
+      el("h4", {}, "Request"),
+      el("div", { class: "net-detail-sub" }, "Headers"),
+      renderHeadersTable(e.requestHeaders ?? {}),
+      el("div", { class: "net-detail-sub" }, [
+        "Payload",
+        e.requestContentType
+          ? el("span", { class: "net-detail-mime" }, ` · ${e.requestContentType}`)
+          : null,
+      ]),
+      renderBodyBlock(
+        e.requestBody,
+        e.requestContentType,
+        e.requestBodyTruncated,
+        e.requestBodyNote,
+      ),
+    ]),
+    el("div", { class: "net-detail-section" }, [
+      el("h4", {}, "Response"),
+      el("div", { class: "net-detail-sub" }, "Headers"),
+      renderHeadersTable(e.responseHeaders ?? {}),
+      el("div", { class: "net-detail-sub" }, [
+        "Body",
+        e.responseContentType
+          ? el("span", { class: "net-detail-mime" }, ` · ${e.responseContentType}`)
+          : null,
+      ]),
+      renderBodyBlock(
+        e.responseBody,
+        e.responseContentType,
+        e.responseBodyTruncated,
+        e.responseBodyNote,
+      ),
+    ]),
+  ]);
+};
+
 const renderNetwork = (data: ReportData, stats: Stats): HTMLElement => {
   const events = data.events.filter((e): e is NetworkEvent => e.type === "network");
 
@@ -778,8 +894,8 @@ const renderNetwork = (data: ReportData, stats: Stats): HTMLElement => {
     harBtn,
   ]);
 
-  type Filter = "all" | "ok" | "4xx" | "5xx" | "fail";
-  const filters: { key: Filter; label: string; count: number }[] = [
+  type StatusFilter = "all" | "ok" | "4xx" | "5xx" | "fail";
+  const filters: { key: StatusFilter; label: string; count: number }[] = [
     { key: "all", label: "All", count: stats.network },
     { key: "ok", label: "2xx/3xx", count: stats.netOk },
     { key: "4xx", label: "4xx", count: stats.net4xx },
@@ -787,9 +903,11 @@ const renderNetwork = (data: ReportData, stats: Stats): HTMLElement => {
     { key: "fail", label: "Failed", count: stats.netFail },
   ];
 
-  let active: Filter = "all";
+  let active: StatusFilter = "all";
+  let urlQuery = "";
+  const expanded = new Set<number>();
 
-  const matches = (e: NetworkEvent, f: Filter): boolean => {
+  const matchesStatus = (e: NetworkEvent, f: StatusFilter): boolean => {
     if (f === "all") return true;
     if (f === "fail") return e.status === 0;
     if (f === "ok") return e.status >= 200 && e.status < 400;
@@ -798,14 +916,36 @@ const renderNetwork = (data: ReportData, stats: Stats): HTMLElement => {
     return true;
   };
 
+  const matchesUrl = (e: NetworkEvent, q: string): boolean => {
+    if (!q) return true;
+    const terms = q
+      .split(/\s+/)
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+    if (terms.length === 0) return true;
+    const url = e.url.toLowerCase();
+    return terms.every((t) => url.includes(t));
+  };
+
   const tbody = el("tbody");
+  const countLabel = el("div", { class: "net-count" });
+
   const renderRows = () => {
     tbody.replaceChildren();
-    for (const e of events) {
-      if (!matches(e, active)) continue;
+    let visible = 0;
+    events.forEach((e, idx) => {
+      if (!matchesStatus(e, active)) return;
+      if (!matchesUrl(e, urlQuery)) return;
+      visible++;
+
       const statusLabel = e.status === 0 ? "ERR" : String(e.status);
-      tbody.appendChild(
-        el("tr", {}, [
+      const isOpen = expanded.has(idx);
+
+      const row = el(
+        "tr",
+        { class: "net-row" + (isOpen ? " expanded" : "") },
+        [
+          el("td", { class: "col-toggle" }, isOpen ? "▾" : "▸"),
           el("td", { class: "col-time" }, fmtTime(e.ts)),
           el("td", { class: "col-type" }, e.method),
           el("td", { class: "col-msg" }, [
@@ -818,9 +958,29 @@ const renderNetwork = (data: ReportData, stats: Stats): HTMLElement => {
           el("td", { class: "col-time" }, `${e.duration} ms`),
           el("td", { class: "col-time" }, fmtSize(e.size)),
           el("td", { class: "col-type" }, e.initiator),
-        ]),
+        ],
       );
-    }
+      row.addEventListener("click", () => {
+        if (expanded.has(idx)) expanded.delete(idx);
+        else expanded.add(idx);
+        renderRows();
+      });
+      tbody.appendChild(row);
+
+      if (isOpen) {
+        const detailRow = el("tr", { class: "net-detail-row-tr" }, [
+          el("td", { colspan: 8, class: "net-detail-cell" }, renderNetworkDetail(e)),
+        ]);
+        tbody.appendChild(detailRow);
+      }
+    });
+    countLabel.replaceChildren(
+      document.createTextNode(
+        visible === events.length
+          ? `${events.length} requests`
+          : `${visible} of ${events.length} requests`,
+      ),
+    );
   };
   renderRows();
 
@@ -839,12 +999,39 @@ const renderNetwork = (data: ReportData, stats: Stats): HTMLElement => {
     return p;
   });
 
+  const search = el("input", {
+    type: "search",
+    class: "net-search",
+    placeholder: "Filter URL (space-separated terms all must match)",
+    "aria-label": "Filter network URLs",
+  }) as HTMLInputElement;
+  search.addEventListener("input", () => {
+    urlQuery = search.value;
+    renderRows();
+  });
+  const clearBtn = el(
+    "button",
+    { class: "net-search-clear", type: "button", title: "Clear filter" },
+    "✕",
+  );
+  clearBtn.addEventListener("click", () => {
+    search.value = "";
+    urlQuery = "";
+    renderRows();
+    search.focus();
+  });
+
   const body = el("div", { class: "collapse-body" }, [
-    el("div", { class: "filters" }, pillEls),
+    el("div", { class: "net-controls" }, [
+      el("div", { class: "filters" }, pillEls),
+      el("div", { class: "net-search-wrap" }, [search, clearBtn]),
+    ]),
+    countLabel,
     el("div", { class: "table-wrap" }, [
-      el("table", {}, [
+      el("table", { class: "net-table" }, [
         el("thead", {}, [
           el("tr", {}, [
+            el("th", { class: "col-toggle" }, ""),
             el("th", {}, "Time"),
             el("th", {}, "Method"),
             el("th", {}, "Status"),
