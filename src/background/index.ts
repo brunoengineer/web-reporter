@@ -95,8 +95,8 @@ const handle = async (msg: Msg): Promise<MsgResponse> => {
     }
     case "EXPORT": {
       await exportSession();
-      const meta = await loadSession();
-      return buildOk(meta?.state ?? "idle", meta);
+      await stopSession();
+      return buildOk("idle", null);
     }
   }
 };
