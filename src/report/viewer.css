@@ -703,7 +703,8 @@ details.collapse[open] > summary {
 
 /* ------------- Network rows + detail panel ------------- */
 
-.net-table .col-toggle {
+.net-table .col-toggle,
+.console-table .col-toggle {
   width: 18px;
   font-family: var(--mono);
   color: var(--muted);
@@ -713,26 +714,32 @@ details.collapse[open] > summary {
   user-select: none;
 }
 
-.net-row {
+.net-row,
+.console-row {
   cursor: pointer;
 }
 
-.net-row.expanded {
+.net-row.expanded,
+.console-row.expanded {
   background: var(--bg-soft);
 }
 
-.net-row.expanded .col-toggle {
+.net-row.expanded .col-toggle,
+.console-row.expanded .col-toggle {
   color: var(--accent);
 }
 
-.net-detail-row-tr {
+.net-detail-row-tr,
+.console-detail-row-tr {
   background: var(--bg-soft);
 }
-.net-detail-row-tr:hover {
+.net-detail-row-tr:hover,
+.console-detail-row-tr:hover {
   background: var(--bg-soft);
 }
 
-.net-detail-cell {
+.net-detail-cell,
+.console-detail-cell {
   padding: 0 !important;
   border-bottom: 1px solid var(--border);
 }

@@ -588,15 +588,70 @@ const renderTimeline = (data: ReportData): HTMLElement => {
 
 const consoleLevelClass = (level: ConsoleEvent["level"]): string => `level-pill level-${level}`;
 
+type ConsoleRow =
+  | { kind: "console"; e: ConsoleEvent }
+  | { kind: "runtime"; e: RuntimeErrorEvent };
+
+const tryPrettyJsonMessage = (s: string): { text: string; isJson: boolean } => {
+  const t = s.trim();
+  if (!t || (t[0] !== "{" && t[0] !== "[")) return { text: s, isJson: false };
+  try {
+    return { text: JSON.stringify(JSON.parse(t), null, 2), isJson: true };
+  } catch {
+    return { text: s, isJson: false };
+  }
+};
+
+const renderConsoleDetail = (row: ConsoleRow): HTMLElement => {
+  const e = row.e;
+  const isRuntime = row.kind === "runtime";
+  const level: ConsoleEvent["level"] = isRuntime ? "error" : (e as ConsoleEvent).level;
+  const stack = isRuntime ? (e as RuntimeErrorEvent).stack : undefined;
+  const source = isRuntime ? (e as RuntimeErrorEvent).source : undefined;
+  const pretty = tryPrettyJsonMessage(e.message);
+
+  return el("div", { class: "net-detail" }, [
+    el("div", { class: "net-detail-row" }, [
+      el("div", { class: "net-detail-label" }, "When"),
+      el("div", { class: "net-detail-url" }, `${fmtDate(e.ts)} · ${fmtTime(e.ts)}`),
+    ]),
+    el("div", { class: "net-detail-row" }, [
+      el("div", { class: "net-detail-label" }, "Level"),
+      el("div", {}, [
+        el("span", { class: consoleLevelClass(level) }, isRuntime ? "runtime error" : level),
+      ]),
+    ]),
+    source
+      ? el("div", { class: "net-detail-row" }, [
+          el("div", { class: "net-detail-label" }, "Source"),
+          el("div", { class: "net-detail-url" }, source),
+        ])
+      : null,
+    el("div", { class: "net-detail-section" }, [
+      el("h4", {}, "Message"),
+      pretty.isJson
+        ? el(
+            "div",
+            { class: "net-detail-mime", style: "margin-bottom:4px" },
+            "Detected JSON · pretty-printed",
+          )
+        : null,
+      el("pre", { class: "body-pre" }, pretty.text || "(empty)"),
+    ]),
+    stack
+      ? el("div", { class: "net-detail-section" }, [
+          el("h4", {}, "Stack"),
+          el("pre", { class: "body-pre" }, stack),
+        ])
+      : null,
+  ]);
+};
+
 const renderConsole = (data: ReportData, stats: Stats): HTMLElement => {
   const consoleEvents = data.events.filter(isConsoleEvent);
   const errorEvents = data.events.filter(
     (e): e is RuntimeErrorEvent => e.type === "error",
   );
-
-  type ConsoleRow =
-    | { kind: "console"; e: ConsoleEvent }
-    | { kind: "runtime"; e: RuntimeErrorEvent };
 
   const rows: ConsoleRow[] = [
     ...consoleEvents.map((e): ConsoleRow => ({ kind: "console", e })),
@@ -615,42 +670,56 @@ const renderConsole = (data: ReportData, stats: Stats): HTMLElement => {
   ];
 
   let active: "all" | "error" | "warn" | "log" = "all";
+  const expanded = new Set<number>();
 
   const tbody = el("tbody");
   const renderRows = () => {
     tbody.replaceChildren();
-    for (const row of rows) {
+    rows.forEach((row, idx) => {
       const level: string = row.kind === "runtime" ? "error" : row.e.level;
-      if (active === "error" && level !== "error") continue;
-      if (active === "warn" && level !== "warn") continue;
-      if (active === "log" && (level === "error" || level === "warn")) continue;
+      if (active === "error" && level !== "error") return;
+      if (active === "warn" && level !== "warn") return;
+      if (active === "log" && (level === "error" || level === "warn")) return;
 
-      const stack = row.e.type === "error"
-        ? row.e.stack
-        : undefined;
-      const source = row.e.type === "error"
-        ? row.e.source
-        : undefined;
+      const source =
+        row.kind === "runtime" ? row.e.source ?? "" : "";
+      const preview = truncate(row.e.message.replace(/\s+/g, " ").trim(), 200);
+      const isOpen = expanded.has(idx);
 
-      const msgCell = el("td", { class: "col-msg" }, [
-        row.e.message,
-        stack
-          ? el("details", { class: "stack-toggle" }, [
-              el("summary", {}, "stack"),
-              el("pre", { class: "stack" }, stack),
-            ])
-          : null,
-      ]);
-
-      tbody.appendChild(
-        el("tr", {}, [
+      const tr = el(
+        "tr",
+        { class: "console-row" + (isOpen ? " expanded" : "") },
+        [
+          el("td", { class: "col-toggle" }, isOpen ? "▾" : "▸"),
           el("td", { class: "col-time" }, fmtTime(row.e.ts)),
-          el("td", { class: "col-level" }, [el("span", { class: consoleLevelClass(level as ConsoleEvent["level"]) }, level)]),
-          msgCell,
-          el("td", { class: "col-detail" }, source ?? ""),
-        ]),
+          el(
+            "td",
+            { class: "col-level" },
+            [el("span", { class: consoleLevelClass(level as ConsoleEvent["level"]) }, level)],
+          ),
+          el("td", { class: "col-msg" }, preview),
+          el("td", { class: "col-detail" }, source),
+        ],
       );
-    }
+      tr.addEventListener("click", () => {
+        if (expanded.has(idx)) expanded.delete(idx);
+        else expanded.add(idx);
+        renderRows();
+      });
+      tbody.appendChild(tr);
+
+      if (isOpen) {
+        tbody.appendChild(
+          el("tr", { class: "console-detail-row-tr" }, [
+            el(
+              "td",
+              { colspan: 5, class: "console-detail-cell" },
+              renderConsoleDetail(row),
+            ),
+          ]),
+        );
+      }
+    });
   };
   renderRows();
 
@@ -669,12 +738,23 @@ const renderConsole = (data: ReportData, stats: Stats): HTMLElement => {
     return p;
   });
 
-  return el("div", {}, [
+  const logsCount =
+    stats.consoleAll - stats.consoleError - stats.consoleWarn;
+  const head = el("div", { class: "network-head" }, [
+    el(
+      "div",
+      { class: "net-summary" },
+      `${rows.length} entries · ${stats.errors} errors · ${stats.consoleWarn} warnings · ${logsCount} logs`,
+    ),
+  ]);
+
+  const body = el("div", { class: "collapse-body" }, [
     el("div", { class: "filters" }, pillEls),
     el("div", { class: "table-wrap" }, [
-      el("table", {}, [
+      el("table", { class: "console-table" }, [
         el("thead", {}, [
           el("tr", {}, [
+            el("th", { class: "col-toggle" }, ""),
             el("th", {}, "Time"),
             el("th", {}, "Level"),
             el("th", {}, "Message"),
@@ -683,6 +763,14 @@ const renderConsole = (data: ReportData, stats: Stats): HTMLElement => {
         ]),
         tbody,
       ]),
+    ]),
+  ]);
+
+  return el("div", {}, [
+    head,
+    el("details", { class: "collapse" }, [
+      el("summary", {}, `Show ${rows.length} entries`),
+      body,
     ]),
   ]);
 };
