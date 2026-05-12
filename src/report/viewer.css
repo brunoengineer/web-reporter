@@ -902,6 +902,104 @@ details.stack-toggle[open] > summary::before {
   transform: rotate(90deg);
 }
 
+/* ------------- Overview section ------------- */
+
+.overview {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 28px;
+  align-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+}
+
+.overview-donut-wrap {
+  position: relative;
+  width: 200px;
+  height: 200px;
+}
+
+.donut-lg {
+  width: 200px;
+  height: 200px;
+  display: block;
+}
+
+.overview-donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.overview-donut-total {
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+.overview-donut-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.overview-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.overview-card {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--card-color, var(--accent));
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  background: var(--bg);
+}
+
+.overview-num {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--card-color, var(--fg));
+  font-variant-numeric: tabular-nums;
+}
+
+.overview-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-top: 4px;
+}
+
+.overview-sub {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--mono);
+  margin-top: 2px;
+}
+
+@media (max-width: 800px) {
+  .overview {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+  .overview-cards {
+    width: 100%;
+  }
+}
+
 /* ------------- Actions section / donut ------------- */
 
 .actions-head {

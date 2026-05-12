@@ -335,6 +335,7 @@ const renderSummary = (data: ReportData, stats: Stats): HTMLElement => {
 // ------------------------- Sidebar -------------------------
 
 const SECTIONS: { id: string; label: string }[] = [
+  { id: "overview", label: "Overview" },
   { id: "notes", label: "Notes" },
   { id: "repro", label: "Repro Steps" },
   { id: "timeline", label: "Timeline" },
@@ -1145,7 +1146,10 @@ const renderNetwork = (data: ReportData, stats: Stats): HTMLElement => {
 
 // ------------------------- Actions -------------------------
 
-const renderDonut = (parts: { label: string; value: number; color: string }[]): SVGElement => {
+const renderDonut = (
+  parts: { label: string; value: number; color: string }[],
+  className = "donut",
+): SVGElement => {
   const r = 36;
   const c = 2 * Math.PI * r;
   const total = parts.reduce((acc, p) => acc + p.value, 0);
@@ -1175,10 +1179,49 @@ const renderDonut = (parts: { label: string; value: number; color: string }[]): 
       offset += len;
     }
   }
-  return svg("svg", { class: "donut", viewBox: "0 0 100 100" }, children);
+  return svg("svg", { class: className, viewBox: "0 0 100 100" }, children);
 };
 
-const renderActions = (data: ReportData, stats: Stats): HTMLElement => {
+// ------------------------- Overview -------------------------
+
+const renderOverview = (stats: Stats): HTMLElement => {
+  const apiErrors = stats.net4xx + stats.net5xx;
+  const parts = [
+    { label: "Errors", subtitle: "console + runtime", value: stats.errors, color: "var(--danger)" },
+    { label: "Warnings", subtitle: "console.warn", value: stats.consoleWarn, color: "var(--warn)" },
+    { label: "API errors", subtitle: "4xx + 5xx", value: apiErrors, color: "var(--purple)" },
+    { label: "Screenshots", subtitle: "manual captures", value: stats.shots, color: "var(--accent)" },
+  ];
+  const total = parts.reduce((acc, p) => acc + p.value, 0);
+
+  const donutWrap = el("div", { class: "overview-donut-wrap" }, [
+    renderDonut(parts, "donut donut-lg"),
+    el("div", { class: "overview-donut-center" }, [
+      el("div", { class: "overview-donut-total" }, String(total)),
+      el("div", { class: "overview-donut-label" }, total === 1 ? "issue" : "issues"),
+    ]),
+  ]);
+
+  const cards = el(
+    "div",
+    { class: "overview-cards" },
+    parts.map((p) =>
+      el(
+        "div",
+        { class: "overview-card", style: `--card-color: ${p.color}` },
+        [
+          el("div", { class: "overview-num" }, String(p.value)),
+          el("div", { class: "overview-label" }, p.label),
+          el("div", { class: "overview-sub" }, p.subtitle),
+        ],
+      ),
+    ),
+  );
+
+  return el("div", { class: "overview" }, [donutWrap, cards]);
+};
+
+const renderActions = (data: ReportData): HTMLElement => {
   const actions = data.events.filter(
     (e): e is ClickEvent | FormInputEvent | FormSubmitEvent | NavEvent =>
       e.type === "click" || e.type === "input" || e.type === "submit" || e.type === "nav",
@@ -1187,26 +1230,6 @@ const renderActions = (data: ReportData, stats: Stats): HTMLElement => {
   if (actions.length === 0) {
     return el("div", { class: "card empty" }, "No user actions recorded.");
   }
-
-  const donutParts = [
-    { label: "Clicks", value: stats.clicks, color: "var(--info)" },
-    { label: "Inputs", value: stats.inputs, color: "var(--ok)" },
-    { label: "Submits", value: stats.submits, color: "var(--purple)" },
-    { label: "Navs", value: stats.navs, color: "var(--muted)" },
-  ];
-
-  const head = el("div", { class: "actions-head" }, [
-    renderDonut(donutParts),
-    el("div", { class: "donut-legend" },
-      donutParts.map((p) =>
-        el("div", { class: "donut-legend-row" }, [
-          el("span", { class: "legend-dot", style: `background:${p.color}` }),
-          `${p.label}: `,
-          el("strong", {}, String(p.value)),
-        ]),
-      ),
-    ),
-  ]);
 
   const tbody = el(
     "tbody",
@@ -1231,7 +1254,6 @@ const renderActions = (data: ReportData, stats: Stats): HTMLElement => {
   );
 
   return el("div", {}, [
-    head,
     el("div", { class: "table-wrap" }, [
       el("table", {}, [
         el("thead", {}, [
@@ -1425,6 +1447,10 @@ const bootstrap = () => {
   app.appendChild(renderSidebar());
 
   const main = el("main", {}, [
+    el("section", { id: "overview" }, [
+      el("h2", { class: "section-h" }, "Overview"),
+      renderOverview(stats),
+    ]),
     el("section", { id: "notes" }, [
       el("h2", { class: "section-h" }, "Notes"),
       renderNotes(data),
@@ -1447,7 +1473,7 @@ const bootstrap = () => {
     ]),
     el("section", { id: "actions" }, [
       el("h2", { class: "section-h" }, "Actions"),
-      renderActions(data, stats),
+      renderActions(data),
     ]),
     el("section", { id: "screenshots" }, [
       el("h2", { class: "section-h" }, "Screenshots"),
