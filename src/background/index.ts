@@ -1,5 +1,5 @@
 import type { Msg, MsgResponse } from "../shared/messages";
-import type { ScreenshotEvent, SessionEvent } from "../shared/schema";
+import type { ScreenshotEvent } from "../shared/schema";
 import {
   appendEvents,
   getEventsBytes,
@@ -11,9 +11,6 @@ import {
 } from "./session";
 import { saveScreenshot } from "./screenshots";
 import { exportSession } from "./exporter";
-
-const AUTO_COOLDOWN_MS = 3000;
-let lastAutoAt = 0;
 
 const buildOk = async (
   state: "idle" | "recording",
@@ -53,17 +50,6 @@ const captureAndAppend = async (
   return ev;
 };
 
-const triggerAutoShotIfNeeded = (events: SessionEvent[]) => {
-  const errorEvent = events.find(
-    (e) => e.type === "error" || (e.type === "console" && e.level === "error"),
-  );
-  if (!errorEvent) return;
-  const now = Date.now();
-  if (now - lastAutoAt < AUTO_COOLDOWN_MS) return;
-  lastAutoAt = now;
-  void captureAndAppend("auto", errorEvent.ts).catch(() => undefined);
-};
-
 const handle = async (msg: Msg): Promise<MsgResponse> => {
   switch (msg.type) {
     case "GET_STATE": {
@@ -84,7 +70,6 @@ const handle = async (msg: Msg): Promise<MsgResponse> => {
     }
     case "APPEND_EVENTS": {
       await appendEvents(msg.payload);
-      triggerAutoShotIfNeeded(msg.payload);
       const meta = await loadSession();
       return buildOk(meta?.state ?? "idle", meta);
     }
