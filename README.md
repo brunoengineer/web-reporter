@@ -1,5 +1,9 @@
 # Web Reporter
 
+<p align="center">
+  <img src="src/img/report.gif" alt="Web Reporter session preview" width="100%" />
+</p>
+
 A Chrome extension for QA engineers. Record a manual-test session locally and export a **single self-contained `.html` file** to hand to a developer. No server, no cloud, no shareable link — everything stays in the browser until you click Export.
 
 See [PLAN.md](./PLAN.md) for the design rationale.
