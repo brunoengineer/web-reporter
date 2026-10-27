@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { buildReportHtml, escapeForJsonScript, escapeHtml, slugify } from "../background/exporter";
-import type { SessionMeta } from "../shared/schema";
+import {
+  buildReportHtml,
+  escapeForJsonScript,
+  escapeHtml,
+  fileTimestamp,
+  slugify,
+  sortEvents,
+  toDataUrl,
+} from "../background/exporter";
+import type { SessionEvent, SessionMeta } from "../shared/schema";
 
 describe("escapeHtml", () => {
   it("escapes the five HTML-significant characters", () => {
@@ -32,9 +40,18 @@ describe("escapeForJsonScript", () => {
     expect(escapeForJsonScript("</Script>")).toBe("<\\/script>");
   });
 
+  it("escapes HTML comment openers (they can confuse the HTML parser inside <script>)", () => {
+    expect(escapeForJsonScript("<!-- hi")).toBe("\\u003c!-- hi");
+  });
+
   it("leaves benign content alone", () => {
     expect(escapeForJsonScript('{"foo":"bar"}')).toBe('{"foo":"bar"}');
     expect(escapeForJsonScript("script tag in text")).toBe("script tag in text");
+  });
+
+  it("produces output JSON.parse still accepts", () => {
+    const payload = JSON.stringify({ m: "</script><!--" });
+    expect(JSON.parse(escapeForJsonScript(payload))).toEqual({ m: "</script><!--" });
   });
 });
 
@@ -65,6 +82,43 @@ describe("slugify", () => {
   });
 });
 
+describe("fileTimestamp", () => {
+  it("formats as YYYYMMDD-HHmm", () => {
+    expect(fileTimestamp(new Date(2026, 0, 5, 9, 7))).toBe("20260105-0907");
+  });
+});
+
+describe("sortEvents", () => {
+  it("orders by timestamp and keeps insertion order for ties", () => {
+    const events: SessionEvent[] = [
+      { type: "console", ts: 3, level: "log", message: "c" },
+      { type: "console", ts: 1, level: "log", message: "a1" },
+      { type: "console", ts: 1, level: "log", message: "a2" },
+      { type: "console", ts: 2, level: "log", message: "b" },
+    ];
+    const sorted = sortEvents(events).map((e) => (e as { message: string }).message);
+    expect(sorted).toEqual(["a1", "a2", "b", "c"]);
+  });
+});
+
+describe("toDataUrl", () => {
+  it("round-trips UTF-8 content", () => {
+    const html = "<p>héllo — ✓</p>";
+    const url = toDataUrl(html);
+    expect(url.startsWith("data:text/html;charset=utf-8;base64,")).toBe(true);
+    const b64 = url.slice(url.indexOf(",") + 1);
+    const decoded = new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+    expect(decoded).toBe(html);
+  });
+
+  it("handles inputs larger than one chunk", () => {
+    const html = "x".repeat(100_000);
+    const url = toDataUrl(html);
+    const b64 = url.slice(url.indexOf(",") + 1);
+    expect(atob(b64).length).toBe(100_000);
+  });
+});
+
 describe("buildReportHtml", () => {
   const meta: SessionMeta = {
     id: "test-id",
@@ -73,6 +127,8 @@ describe("buildReportHtml", () => {
     title: "Sample bug",
     severity: "medium",
     notes: "Steps:\n1. open page\n2. click",
+    tab: { id: 1, windowId: 1, url: "https://example.com", title: "Example" },
+    appVersion: "0.2.0",
   };
 
   it("produces a doctype HTML document with the title", () => {
@@ -95,20 +151,28 @@ describe("buildReportHtml", () => {
   it("inlines the session JSON inside the wr-session script tag", () => {
     const html = buildReportHtml(meta, [], 1700000060000, {});
     expect(html).toMatch(/<script id="wr-session" type="application\/json">.*"id":"test-id"/s);
-    expect(html).toContain("\"endedAt\":1700000060000");
+    expect(html).toContain('"endedAt":1700000060000');
   });
 
   it("escapes </script in event data so it cannot break out", () => {
-    const evilEvent = {
-      type: "console" as const,
+    const evilEvent: SessionEvent = {
+      type: "console",
       ts: 1700000001000,
-      level: "log" as const,
+      level: "log",
       message: "</script><script>alert(1)</script>",
     };
     const html = buildReportHtml(meta, [evilEvent], 1700000060000, {});
-    // The malicious </script> must be escaped inside the JSON block
     expect(html).not.toMatch(/<script id="wr-session"[^>]*>[^]*<\/script><script>alert/);
     expect(html).toContain("<\\/script>");
+  });
+
+  it("sorts events by timestamp in the embedded JSON", () => {
+    const events: SessionEvent[] = [
+      { type: "console", ts: 1700000002000, level: "log", message: "second" },
+      { type: "console", ts: 1700000001000, level: "log", message: "first" },
+    ];
+    const html = buildReportHtml(meta, events, 1700000060000, {});
+    expect(html.indexOf('"first"')).toBeLessThan(html.indexOf('"second"'));
   });
 
   it("includes the screenshots map", () => {

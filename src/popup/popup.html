@@ -7,45 +7,105 @@
     <link rel="stylesheet" href="./popup.css" />
   </head>
   <body>
-    <header>
-      <h1>Web Reporter</h1>
-      <div class="header-right">
-        <span id="events-count" class="events-count" hidden>0 events</span>
-        <span id="status" class="status idle">idle</span>
+    <header class="top">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"></span>
+        <h1>Web Reporter</h1>
       </div>
+      <span id="status" class="status idle">Idle</span>
     </header>
 
+    <div id="toast" class="toast" hidden role="status"></div>
+
     <main>
-      <div class="controls">
-        <button id="toggle" class="primary">Start recording</button>
-        <button id="screenshot" disabled>Take screenshot</button>
+      <section class="tab-card" id="tab-card">
+        <img id="tab-favicon" class="tab-favicon" alt="" hidden />
+        <span id="tab-favicon-fallback" class="tab-favicon fallback" aria-hidden="true"></span>
+        <div class="tab-text">
+          <div id="tab-label" class="tab-label">This tab</div>
+          <div id="tab-title" class="tab-title">—</div>
+          <div id="tab-url" class="tab-url">—</div>
+        </div>
+      </section>
+
+      <div id="warning" class="warning" hidden>
+        <span id="warning-text"></span>
+        <button id="warning-action" class="link" type="button" hidden></button>
       </div>
 
-      <label>
-        <span>Title</span>
-        <input id="title" type="text" placeholder="Login fails after submit" />
-      </label>
+      <section id="rec-panel" class="rec-panel" hidden>
+        <div class="rec-row">
+          <span class="rec-dot" aria-hidden="true"></span>
+          <span class="rec-label">Recording</span>
+          <span id="elapsed" class="elapsed">00:00</span>
+          <span id="size" class="size" title="Estimated report size">0 KB</span>
+        </div>
+        <div class="chips" id="chips">
+          <span class="chip" data-k="actions"><b>0</b> actions</span>
+          <span class="chip chip-danger" data-k="errors"><b>0</b> errors</span>
+          <span class="chip chip-warn" data-k="warnings"><b>0</b> warnings</span>
+          <span class="chip" data-k="requests"><b>0</b> requests</span>
+          <span class="chip" data-k="shots"><b>0</b> shots</span>
+          <span class="chip" data-k="notes"><b>0</b> notes</span>
+        </div>
+        <div id="dropped" class="dropped" hidden></div>
+      </section>
 
-      <label>
-        <span>Severity</span>
-        <select id="severity">
-          <option value="low">Low</option>
-          <option value="medium" selected>Medium</option>
-          <option value="high">High</option>
-        </select>
-      </label>
+      <div class="field">
+        <label for="title">Title</label>
+        <input id="title" type="text" placeholder="Login fails after submit" maxlength="200" autocomplete="off" />
+      </div>
 
-      <label>
-        <span>Notes</span>
-        <textarea
-          id="notes"
-          rows="4"
-          placeholder="Steps to reproduce, expected vs actual…"
-        ></textarea>
-      </label>
+      <div class="field">
+        <span class="label">Severity</span>
+        <div class="segmented" id="severity" role="radiogroup" aria-label="Severity">
+          <button type="button" data-value="low" role="radio" aria-checked="false">Low</button>
+          <button type="button" data-value="medium" role="radio" aria-checked="true" class="active">Medium</button>
+          <button type="button" data-value="high" role="radio" aria-checked="false">High</button>
+          <button type="button" data-value="critical" role="radio" aria-checked="false">Critical</button>
+        </div>
+      </div>
 
-      <button id="export" class="primary" disabled>Export report</button>
+      <div class="field">
+        <label for="notes">Notes</label>
+        <textarea id="notes" rows="2" placeholder="Steps to reproduce, expected vs actual…"></textarea>
+      </div>
+
+      <section id="note-panel" class="field" hidden>
+        <label for="note-text">Add a timestamped note</label>
+        <div class="note-row">
+          <input id="note-text" type="text" placeholder="e.g. Clicked Save, spinner never stops" maxlength="2000" autocomplete="off" />
+          <button id="note-add" type="button" title="Add note (Enter)">Add</button>
+        </div>
+      </section>
+
+      <div class="actions" id="actions-idle">
+        <button id="start" class="primary" type="button">
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="5" fill="currentColor"/></svg>
+          Start recording
+        </button>
+      </div>
+
+      <div class="actions" id="actions-rec" hidden>
+        <div class="row">
+          <button id="screenshot" type="button">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M5.5 2 4.6 3.5H2.5A1.5 1.5 0 0 0 1 5v7a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 15 12V5a1.5 1.5 0 0 0-1.5-1.5h-2.1L10.5 2h-5ZM8 5.5a3 3 0 1 1 0 6 3 3 0 0 1 0-6Zm0 1.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z"/></svg>
+            Screenshot
+          </button>
+          <button id="export" class="primary" type="button">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 1.5a.75.75 0 0 1 .75.75v6.19l1.72-1.72a.75.75 0 1 1 1.06 1.06l-3 3a.75.75 0 0 1-1.06 0l-3-3a.75.75 0 0 1 1.06-1.06l1.72 1.72V2.25A.75.75 0 0 1 8 1.5ZM2.5 10.75a.75.75 0 0 1 .75.75v1.25h9.5V11.5a.75.75 0 0 1 1.5 0v2a.75.75 0 0 1-.75.75h-11a.75.75 0 0 1-.75-.75v-2a.75.75 0 0 1 .75-.75Z"/></svg>
+            Export report
+          </button>
+        </div>
+        <button id="discard" class="link danger" type="button">Discard session</button>
+      </div>
     </main>
+
+    <footer>
+      <button id="open-options" class="link" type="button">Settings</button>
+      <span class="hint" id="shortcut-hint" title="Change in chrome://extensions/shortcuts">Alt+Shift+S = screenshot</span>
+      <span class="version" id="version"></span>
+    </footer>
 
     <script type="module" src="./popup.ts"></script>
   </body>

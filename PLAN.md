@@ -193,29 +193,24 @@ Left sidebar nav, main scrolling area, **summary card pinned at top**.
 
 ---
 
-## 6. Phased delivery
+## 6. Status (0.2.0)
 
-### Phase 1 — MVP
-- Vite + crxjs + TS scaffold.
-- Manifest V3 with `activeTab`, `storage`, `scripting`, `tabs`, `downloads`.
-- Popup: Start / Stop / Take Screenshot / Export, plus title + severity + notes.
-- Capture: page metadata, console output, user-action log (redacted), manual screenshots, **auto-screenshot on console error**.
-- Report viewer: Summary, Repro Steps, Timeline, Console, Actions, Screenshots, Notes, Raw JSON.
-- Export: single self-contained HTML.
-- **Done when:** a QA can record a session on any site, hit Export, double-click the file, and see a coherent report.
+Phases 1 and 2 are shipped, plus most of Phase 3:
 
-### Phase 2 — HAR-lite
-- Patch `fetch` / `XMLHttpRequest` from a page-context script.
-- Network tab in the report (table: method · status · url · time · size). Filter pills.
-- Timeline gains network markers.
+| Area | Shipped |
+|---|---|
+| Capture | Per-tab sessions, idle-time no-op hooks, IndexedDB event store, special keys, timestamped notes, JPEG screenshots, `Alt+Shift+S`, REC badge |
+| Popup | Live timer + counters + size estimate, tab-binding warnings, reload prompt, notes during session, two-step discard |
+| Settings | Screenshot format/quality, console/network/body capture toggles, body size limit, event cap |
+| Report | Overview triage (top errors, failed requests, environment), repro steps with followups, interactive timeline, console search + duplicate grouping, sortable network table with cURL, lightbox, Copy as Markdown, full HAR, print styles, dark mode |
 
-### Phase 3 — Polish
-- Settings page: redaction rules, screenshot quality, dark/light default.
-- "Copy as markdown" button in the report viewer for Jira / GitHub bug templates.
+### Ideas for later
+
 - Full-page screenshots (scroll + stitch).
 - Opt-in `chrome.debugger` full-HAR toggle with a clear warning about the banner.
-
----
+- Custom redaction patterns in Settings.
+- WebSocket frame capture.
+- Pause / resume within a session.
 
 ## 7. Repo layout
 

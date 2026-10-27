@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Web Reporter — Settings</title>
+    <link rel="stylesheet" href="./options.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"></span>
+        <div>
+          <h1>Web Reporter settings</h1>
+          <p class="sub">Changes apply immediately, even to a session in progress.</p>
+        </div>
+      </div>
+      <span id="saved" class="saved" hidden>Saved</span>
+    </header>
+
+    <main>
+      <section class="group">
+        <h2>Screenshots</h2>
+        <div class="row">
+          <div class="row-text">
+            <label for="screenshotFormat">Format</label>
+            <p>JPEG keeps reports small. Use PNG when pixel-exact colours matter.</p>
+          </div>
+          <select id="screenshotFormat">
+            <option value="jpeg">JPEG (recommended)</option>
+            <option value="png">PNG (lossless, larger)</option>
+          </select>
+        </div>
+        <div class="row" id="quality-row">
+          <div class="row-text">
+            <label for="screenshotQuality">JPEG quality</label>
+            <p>Lower = smaller files. 85 is visually lossless for UI screenshots.</p>
+          </div>
+          <div class="range-wrap">
+            <input id="screenshotQuality" type="range" min="30" max="100" step="5" />
+            <output id="screenshotQuality-out" for="screenshotQuality">85</output>
+          </div>
+        </div>
+      </section>
+
+      <section class="group">
+        <h2>Capture</h2>
+        <div class="row">
+          <div class="row-text">
+            <label for="captureConsole">Console output</label>
+            <p>console.log / info / warn / error / debug, uncaught errors and unhandled rejections.</p>
+          </div>
+          <input id="captureConsole" type="checkbox" class="switch" />
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <label for="captureNetwork">Network requests (HAR-lite)</label>
+            <p>fetch and XMLHttpRequest with method, URL, status, duration and size.</p>
+          </div>
+          <input id="captureNetwork" type="checkbox" class="switch" />
+        </div>
+        <div class="row indent">
+          <div class="row-text">
+            <label for="captureBodies">Request &amp; response bodies</label>
+            <p>Text-like content types only. Authorization, Cookie and token headers are always redacted.</p>
+          </div>
+          <input id="captureBodies" type="checkbox" class="switch" />
+        </div>
+        <div class="row indent">
+          <div class="row-text">
+            <label for="maxBodyKb">Max body size</label>
+            <p>Bodies longer than this are truncated. Keeps reports from ballooning on large API responses.</p>
+          </div>
+          <div class="unit-wrap">
+            <input id="maxBodyKb" type="number" min="1" max="1024" step="1" />
+            <span>KB</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <label for="captureKeys">Special keys</label>
+            <p>Enter, Escape, Tab, arrows and Ctrl/Cmd shortcuts. Typed characters are never recorded.</p>
+          </div>
+          <input id="captureKeys" type="checkbox" class="switch" />
+        </div>
+      </section>
+
+      <section class="group">
+        <h2>Limits</h2>
+        <div class="row">
+          <div class="row-text">
+            <label for="maxEvents">Max events per session</label>
+            <p>Newer events are dropped once the limit is hit; the popup tells you when that happens.</p>
+          </div>
+          <input id="maxEvents" type="number" min="100" max="50000" step="100" />
+        </div>
+      </section>
+
+      <section class="group">
+        <h2>Always on</h2>
+        <ul class="facts">
+          <li>Password and phone fields, and inputs whose name matches <code>password | secret | token | otp | cvv | ssn | card</code>, only record their length.</li>
+          <li><code>Authorization</code>, <code>Cookie</code>, <code>Set-Cookie</code> and <code>X-*-Token</code> headers are replaced with <code>[REDACTED]</code>.</li>
+          <li>Nothing leaves your browser until you click Export, and the export is a single local file.</li>
+        </ul>
+      </section>
+
+      <div class="footer-row">
+        <button id="reset" type="button" class="link">Reset to defaults</button>
+        <a class="link" href="#" id="shortcuts">Keyboard shortcuts…</a>
+      </div>
+    </main>
+
+    <script type="module" src="./options.ts"></script>
+  </body>
+</html>

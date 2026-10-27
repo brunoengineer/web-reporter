@@ -1,73 +1,71 @@
-const DB_NAME = "wr_screenshots";
-const STORE = "shots";
-const VERSION = 1;
+import type { ScreenshotEvent, SessionMeta } from "../shared/schema";
+import type { ErrorCode } from "../shared/messages";
+import { loadSettings } from "../shared/settingsStore";
+import { putShot } from "./db";
+import { addShotBytes, appendEvents } from "./session";
 
-let dbPromise: Promise<IDBDatabase> | null = null;
+export class CaptureError extends Error {
+  constructor(
+    message: string,
+    public readonly code: ErrorCode,
+  ) {
+    super(message);
+  }
+}
 
-const openDb = (): Promise<IDBDatabase> => {
-  if (dbPromise) return dbPromise;
-  dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE);
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-  return dbPromise;
-};
+const isCapturableUrl = (url: string | undefined): boolean =>
+  !!url && /^(https?|file|ftp):/i.test(url);
 
-export const saveScreenshot = async (id: string, dataUrl: string): Promise<void> => {
-  const db = await openDb();
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).put(dataUrl, id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
-  });
-};
+/**
+ * Capture the recorded tab. The tab must be the active tab of its window — Chrome can only
+ * screenshot what is on screen.
+ */
+export const captureScreenshot = async (
+  session: SessionMeta,
+  kind: ScreenshotEvent["kind"],
+): Promise<ScreenshotEvent> => {
+  if (!session.tab) throw new CaptureError("Session is not bound to a tab", "capture-failed");
 
-export const loadScreenshot = async (id: string): Promise<string | null> => {
-  const db = await openDb();
-  return new Promise<string | null>((resolve, reject) => {
-    const tx = db.transaction(STORE, "readonly");
-    const req = tx.objectStore(STORE).get(id);
-    req.onsuccess = () => resolve((req.result as string | undefined) ?? null);
-    req.onerror = () => reject(req.error);
-  });
-};
+  let tab: chrome.tabs.Tab;
+  try {
+    tab = await chrome.tabs.get(session.tab.id);
+  } catch {
+    throw new CaptureError("The recorded tab was closed", "tab-closed");
+  }
+  if (!tab.active) {
+    throw new CaptureError("Switch back to the recorded tab to take a screenshot", "tab-not-visible");
+  }
+  if (!isCapturableUrl(tab.url)) {
+    throw new CaptureError("Chrome does not allow screenshots of this page", "capture-failed");
+  }
 
-export const loadAllScreenshots = async (): Promise<Record<string, string>> => {
-  const db = await openDb();
-  return new Promise<Record<string, string>>((resolve, reject) => {
-    const tx = db.transaction(STORE, "readonly");
-    const store = tx.objectStore(STORE);
-    const out: Record<string, string> = {};
-    const req = store.openCursor();
-    req.onsuccess = () => {
-      const cursor = req.result;
-      if (cursor) {
-        out[String(cursor.key)] = cursor.value as string;
-        cursor.continue();
-      } else {
-        resolve(out);
-      }
-    };
-    req.onerror = () => reject(req.error);
-  });
-};
+  const settings = await loadSettings();
+  const opts: chrome.tabs.CaptureVisibleTabOptions =
+    settings.screenshotFormat === "png"
+      ? { format: "png" }
+      : { format: "jpeg", quality: settings.screenshotQuality };
 
-export const clearScreenshots = async (): Promise<void> => {
-  const db = await openDb();
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).clear();
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
-  });
+  let dataUrl: string;
+  try {
+    dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, opts);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new CaptureError(`Screenshot failed: ${msg}`, "capture-failed");
+  }
+  if (!dataUrl) throw new CaptureError("Screenshot returned no data", "capture-failed");
+
+  const id = crypto.randomUUID();
+  await putShot(id, dataUrl);
+  await addShotBytes(dataUrl.length);
+
+  const ev: ScreenshotEvent = {
+    type: "screenshot",
+    ts: Date.now(),
+    id,
+    kind,
+    url: tab.url,
+    title: tab.title,
+  };
+  await appendEvents([ev]);
+  return ev;
 };
